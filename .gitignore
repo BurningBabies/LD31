@@ -3,3 +3,6 @@ Temp/
 *.sln
 Assets/UnityVS/
 Assets/UnityVS.meta
+UnityVS.LD31.v12.suo
+*.csproj
+obj/
