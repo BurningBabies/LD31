@@ -1,77 +1,70 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public enum Facing {
-    Up, 
-    Down,
-    Left, 
-    Right
-}
 
 public class PlayerController : MonoBehaviour {
-    public float movementSpeed;
-    public Facing facing = Facing.Down;
-    public float coolDownTime;
+    public float speed;
+    public GameObject bulletPrefab;
+    public Transform bulletSpawnPoint;
+    public float rateOfFire = 666.0f;
+    public float NoScopeRotatingSpeed;
 
-    Animator anim;
-    Transform sword;
+    float timer = 0.0f;
+    float leftBorder, topBorder, rightBorder, downBorder;
+    GameController gc;
 
     void Awake() {
-        anim = GetComponent<Animator>();
-        StartCoroutine(Attack());
+        gc = GameController.Get();
 
-        sword = transform.FindChild("Sword").transform;
+        var topLeft = Camera.main.ScreenToWorldPoint(new Vector3(0, Screen.height));
+        var bottomRight = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, 0));
+        leftBorder = topLeft.x;
+        topBorder = topLeft.y;
+        rightBorder = bottomRight.x;
+        downBorder = bottomRight.y;
     }
 
     void FixedUpdate() {
-        float h = Input.GetAxisRaw("Horizontal");
-        float v = Input.GetAxisRaw("Vertical");
-        rigidbody2D.velocity = new Vector2(h, v).normalized * movementSpeed * Time.deltaTime;
+        if(gc.rule != Rule.NoScope360) {
+            var lookDirection = transform.position - Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            var rotation = Quaternion.LookRotation(lookDirection, Vector3.forward);
+            transform.rotation = Quaternion.Euler(0, 0, rotation.eulerAngles.z);
+            rigidbody2D.angularVelocity = 0;
+        }
+        else {
+            rigidbody2D.angularVelocity = NoScopeRotatingSpeed;
+        }
 
-        UpdateFacing(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+        var input = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+        rigidbody2D.AddForce(input*speed);
+
+        if(transform.position.x < leftBorder - 0.1f) 
+            rigidbody2D.MovePosition(new Vector2(rightBorder, rigidbody2D.position.y));
+        if (transform.position.x > rightBorder + 0.1f)
+            rigidbody2D.MovePosition(new Vector2(leftBorder, rigidbody2D.position.y));
+        if (transform.position.y > topBorder + 0.1f)
+            rigidbody2D.MovePosition(new Vector2(rigidbody2D.position.x, downBorder));
+        if (transform.position.y < downBorder - 0.1f)
+            rigidbody2D.MovePosition(new Vector2(rigidbody2D.position.x, topBorder));
     }
 
-    void UpdateFacing(float h, float v) {
-        if(h == 0 && v == 0) return;
-
-        if (v > 0)
-            facing = Facing.Up;
-        else if(v < 0)
-            facing = Facing.Down;
-        else
-            facing = (h >= 0) ? Facing.Right : Facing.Left;
-    }
-
-    IEnumerator Attack() {
-        for(;;) {
-            if(Input.GetButton("Fire1")) {
-                anim.SetTrigger("Attack");
-                float swordAngle = 0;
-                switch(facing) {
-                    case Facing.Down:
-                        swordAngle = 0;
-                        break;
-                    case Facing.Left:
-                        swordAngle = 270;
-                        break;
-                    case Facing.Right:
-                        swordAngle = 90;
-                        break;
-                    case Facing.Up:
-                        swordAngle = 180;
-                        break;
+    void Update() {
+        if (Input.GetButton("Fire1") && gc.rule != Rule.CantShoot) {
+            if (bulletPrefab && bulletSpawnPoint && timer <= 0.0f) {
+                var bullets = Instantiate(bulletPrefab, bulletSpawnPoint.position, transform.rotation) as GameObject;
+                timer = 60.0f / rateOfFire;
+                foreach(Transform bullet in bullets.transform) {
+                    if(bullet.collider2D) {
+                        Physics2D.IgnoreCollision(collider2D, bullet.collider2D);
+                    }
                 }
 
-                sword.rotation = Quaternion.Euler(0, 0, swordAngle);
-
-                yield return new WaitForSeconds(coolDownTime);
+                audio.Play();
             }
-
-            yield return null;
         }
-    }
 
-    void DoAttackHit() {
-
+        timer -= Time.deltaTime;
+        if (timer <= 0)
+            timer = 0;
     }
 }
